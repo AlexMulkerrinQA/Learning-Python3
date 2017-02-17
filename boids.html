@@ -1,0 +1,171 @@
+<html>
+<head>
+<title>Boids</title>
+<meta charset="utf-8">
+<script>
+var c,ctx;
+var isPaused = false;
+var timer = 0, updateRate = 3;
+var boids = [];
+var boidsMax = 50;
+var boidColour = "#00ACED";
+var boidRadius = 3;
+var maxVel = 15;
+var border = 10;
+var borderBounce = true;
+
+var attractRate = 0.01;
+var syncRate = 0.025;
+var repelRate = 0.01;
+var repelDist = 20;
+var closeRange = 200;
+function runProgram() {
+	c = document.getElementById("boidCanvas");
+	c.width = window.innerWidth;
+	c.height = window.innerHeight;
+	ctx = c.getContext("2d");
+	c.onmousedown = togglePause;
+	for (var i=0; i<boidsMax; i++) {
+		boids[i] = new Boid();
+	}
+	window.requestAnimationFrame(update);
+}
+function update() {
+	if (!isPaused) {
+		refreshDisplay();
+		timer++;
+		if (timer % updateRate == 0) {
+			for (var i=0; i<boidsMax; i++) {
+				var boid = boids[i];
+				var closeBoids = []
+				for (var j=0; j<boidsMax; j++) {
+					if (i !== j) {
+						if (boid.getDistSq(boids[j]) < closeRange*closeRange) {
+							closeBoids.push(boids[j]);
+						}
+					}
+				}
+				if (closeBoids.length>0) {
+					boid.moveCloser(closeBoids);
+					boid.moveWith(closeBoids);
+					boid.moveAway(closeBoids)
+				}
+				boid.addNoise();
+				boid.move();
+			}
+		}
+	}
+	window.requestAnimationFrame(update);
+}
+// Boid, flocking agent class
+function Boid(x, y, vx, vy) {
+	this.x = x 		|| Math.random()*window.innerWidth;
+	this.y = y 		|| Math.random()*window.innerHeight;
+	this.vx = vx 	|| Math.random()*maxVel*2-maxVel;
+	this.vy = vy 	|| Math.random()*maxVel*2-maxVel;
+}
+Boid.prototype.getDistSq = function(target) {
+	return (this.x-target.x)*(this.x-target.x) + (this.y-target.y)*(this.y-target.y);
+}
+Boid.prototype.move = function() {
+	//reduce velocity to desired range
+	if (Math.abs(this.vx) >= maxVel) {
+		this.vx *= Math.random();
+	}
+	if (Math.abs(this.vy) >= maxVel) {
+		this.vy *= Math.random();
+	}
+	// update position
+	this.x += this.vx;
+	this.y += this.vy;
+	// keep to bounds
+	if (borderBounce) {
+		if (this.x < border && this.vx <0) this.vx *= -1;
+		if (this.x > window.innerWidth - border && this.vx >0) this.vx *= -1;
+		if (this.y < border && this.vy <0) this.vy *= -1;
+		if (this.y > window.innerHeight - border && this.vy >0) this.vy *= -1;
+	}
+}
+Boid.prototype.moveAway = function(nearby) {
+	var dx = 0, dy =0, closeBoids = [];
+	var falloff = Math.sqrt(repelDist);
+	for (var i=0; i<nearby.length; i++) {
+		if (this.getDistSq(nearby[i]) < repelDist*repelDist) {
+			closeBoids.push(boids[i]);
+		}
+	}
+	for (var i=0; i<closeBoids.length; i++) {
+		dx += closeBoids[i].x - this.x;
+		dy += closeBoids[i].y - this.y;
+	}
+	this.vx += (dx * repelRate);
+	this.vy += (dy * repelRate);
+}
+Boid.prototype.moveCloser = function(nearby) {
+	var avgX = 0, avgY = 0;
+	for (var i=0; i<nearby.length; i++) {
+
+		avgX += nearby[i].x - this.x;
+		avgY += nearby[i].y - this.y;
+
+	}
+	avgX /= nearby.length;
+	avgY /= nearby.length;
+
+	this.vx += (avgX * attractRate);
+	this.vy += (avgY * attractRate);
+}
+Boid.prototype.moveWith = function(nearby) {
+	var avgVX = 0, avgVY = 0;
+	for (var i=0; i<nearby.length; i++) {
+
+		avgVX += nearby[i].vx;
+		avgVY += nearby[i].vy;
+
+	}
+	avgVX /= nearby.length;
+	avgVY /= nearby.length;
+
+	this.vx += (avgVX * syncRate);
+	this.vy += (avgVY * syncRate);
+}
+Boid.prototype.addNoise = function() {
+	this.vx += Math.random()*2-1;
+	this.vy += Math.random()*2-1;
+}
+// display updates
+function refreshDisplay() {
+	c.width = window.innerWidth;
+	c.height = window.innerHeight;
+	ctx.fillStyle = "#d0e4fe";
+	ctx.fillRect(0,0,c.width,c.height);	
+	
+	ctx.fillStyle = boidColour;
+	for (var i=0; i<boidsMax; i++) {
+		var boid = boids[i];	
+		drawCircle(boid.x, boid.y, boidRadius);	
+	}
+	
+	if (isPaused) {
+		ctx.fillStyle = "#000000";
+		ctx.fillText("PAUSED", c.width/2,c.height/2);
+	}
+}
+function drawCircle(cx, cy, radius) {
+	ctx.beginPath();
+	ctx.arc(cx, cy, radius, 0, 2*Math.PI);
+	ctx.fill();
+}
+// manage inputs
+function togglePause() {
+	isPaused = !isPaused;
+	refreshDisplay();
+}
+</script>
+</head>
+<body onload="runProgram()">
+<canvas id="boidCanvas" style="position:absolute; top:0px; left:0px; z-index:-1;">
+HTML5 canvas goes here
+</canvas>
+</body>
+</html>
